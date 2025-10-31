@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mapa de Distritos y Puentes</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+            font-family: 'Arial', sans-serif;
+        }
+        
+        #container {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+        }
+        
+        canvas {
+            border-radius: 10px;
+            display: block;
+        }
+        
+        .controls {
+            margin-top: 20px;
+            text-align: center;
+        }
+        
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            margin: 5px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        h2 {
+            text-align: center;
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: #7f8c8d;
+            font-size: 14px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <h2>🗺️ Mapa de Distritos y Puentes</h2>
+        <p class="subtitle">4 Distritos conectados por puentes animados sobre el río</p>
+        <canvas id="mapCanvas" width="1000" height="700"></canvas>
+        <div class="controls">
+            <button onclick="toggleAnimation()">⏯️ Pausar/Reanudar Puentes</button>
+            <button onclick="changeSpeed()">⚡ Velocidad: <span id="speed">Normal</span></button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('mapCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        let animating = true;
+        let time = 0;
+        let speed = 1;
+        const speedOptions = [0.5, 1, 2];
+        let speedIndex = 1;
+        
+        // Definición de los 4 distritos como áreas de tierra
+        const districts = {
+            'd0': {
+                x: 80, y: 250, width: 200, height: 300,
+                color: '#a8d5ba', name: 'PILLCO MARCA',
+                subAreas: ['d0']
+            },
+            'A': {
+                x: 320, y: 250, width: 200, height: 450,
+                color: '#c9e4ca', name: 'AMARILIS',
+                subAreas: ['A1', 'A2', 'A3']
+            },
+            'B': {
+                x: 560, y: 50, width: 200, height: 400,
+                color: '#f7dc6f', name: 'HUÁNUCO',
+                subAreas: ['B1', 'B2', 'B3']
+            },
+            'D': {
+                x: 800, y: 250, width: 150, height: 300,
+                color: '#f8b4b4', name: 'SANTA MARÍA DEL VALLE',
+                subAreas: ['D']
+            }
+        };
+        
+        // Posiciones específicas dentro de cada distrito para las sub-áreas
+        const subAreaPositions = {
+            'd0': {x: 180, y: 400},
+            'A1': {x: 420, y: 380},
+            'A2': {x: 420, y: 560},
+            'A3': {x: 420, y: 480},
+            'B1': {x: 660, y: 150},
+            'B2': {x: 660, y: 250},
+            'B3': {x: 660, y: 350},
+            'D': {x: 875, y: 400}
+        };
+        
+        // Puentes con sus datos
+        const bridges = [
+            {from: 'd0', to: 'B1', weight: 3, length: 'largo'},
+            {from: 'd0', to: 'B1', weight: 9, length: 'largo'},
+            {from: 'd0', to: 'A1', weight: 19, length: 'corto'},
+            {from: 'd0', to: 'A1', weight: 4, length: 'corto'},
+            {from: 'd0', to: 'A2', weight: 6, length: 'corto'},
+            {from: 'A1', to: 'B1', weight: 5, length: 'medio'},
+            {from: 'A1', to: 'A3', weight: 21, length: 'interno'},
+            {from: 'A1', to: 'A2', weight: 11, length: 'interno'},
+            {from: 'A2', to: 'A3', weight: 20, length: 'medio'},
+            {from: 'B1', to: 'B2', weight: 15, length: 'interno'},
+            {from: 'B1', to: 'B2', weight: 18, length: 'interno'},
+            {from: 'B1', to: 'B2', weight: 17, length: 'interno'},
+            {from: 'B1', to: 'B2', weight: 16, length: 'interno'},
+            {from: 'B1', to: 'B2', weight: 10, length: 'interno'},
+            {from: 'B1', to: 'B2', weight: 23, length: 'interno'},
+            {from: 'B1', to: 'B2', weight: 12, length: 'interno'},
+            {from: 'B1', to: 'A3', weight: 8, length: 'medio'},
+            {from: 'B1', to: 'A3', weight: 2, length: 'medio'},
+            {from: 'B1', to: 'A3', weight: 7, length: 'medio'},
+            {from: 'B1', to: 'A3', weight: 1, length: 'medio'},
+            {from: 'B2', to: 'B3', weight: 24, length: 'interno'},
+            {from: 'B3', to: 'A3', weight: 22, length: 'medio'},
+            {from: 'B3', to: 'D', weight: 14, length: 'medio'},
+            {from: 'A3', to: 'D', weight: 13, length: 'medio'}
+        ];
+        
+        // Dibujar río/agua entre distritos
+        function drawWater() {
+            ctx.fillStyle = '#5dade2';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Ondas animadas
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+            ctx.lineWidth = 2;
+            for (let i = 0; i < 10; i++) {
+                ctx.beginPath();
+                for (let x = 0; x < canvas.width; x += 8) {
+                    const y = Math.sin((x + time * 30 + i * 80) * 0.015) * 6 + i * 70;
+                    if (x === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+            }
+        }
+        
+        // Dibujar un distrito
+        function drawDistrict(district) {
+            // Sombra
+            ctx.shadowColor = 'rgba(0,0,0,0.3)';
+            ctx.shadowBlur = 20;
+            ctx.shadowOffsetX = 5;
+            ctx.shadowOffsetY = 5;
+            
+            // Tierra del distrito
+            ctx.fillStyle = district.color;
+            ctx.fillRect(district.x, district.y, district.width, district.height);
+            
+            // Borde
+            ctx.strokeStyle = '#27ae60';
+            ctx.lineWidth = 4;
+            ctx.strokeRect(district.x, district.y, district.width, district.height);
+            
+            ctx.shadowColor = 'transparent';
+            
+            // Textura de hierba
+            ctx.fillStyle = 'rgba(46, 125, 50, 0.1)';
+            for (let i = 0; i < 30; i++) {
+                const x = district.x + Math.random() * district.width;
+                const y = district.y + Math.random() * district.height;
+                ctx.fillRect(x, y, 3, 3);
+            }
+            
+            // Nombre del distrito
+            ctx.fillStyle = '#2c3e50';
+            ctx.font = 'bold 24px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText(district.name, district.x + district.width/2, district.y + 30);
+            
+            // Sub-áreas
+            district.subAreas.forEach(subArea => {
+                const pos = subAreaPositions[subArea];
+                
+                ctx.fillStyle = 'rgba(52, 73, 94, 0.7)';
+                ctx.beginPath();
+                ctx.arc(pos.x, pos.y, 25, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.fillStyle = 'white';
+                ctx.font = 'bold 16px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(subArea, pos.x, pos.y);
+            });
+        }
+        
+        // Dibujar un puente animado
+        function drawBridge(bridge, offset) {
+            const from = subAreaPositions[bridge.from];
+            const to = subAreaPositions[bridge.to];
+            
+            const midX = (from.x + to.x) / 2;
+            const midY = (from.y + to.y) / 2;
+            const dx = to.x - from.x;
+            const dy = to.y - from.y;
+            const perpX = -dy;
+            const perpY = dx;
+            const len = Math.sqrt(perpX * perpX + perpY * perpY);
+            const controlX = midX + (perpX / len) * offset * 15;
+            const controlY = midY + (perpY / len) * offset * 15;
+            
+            // Animación: partículas moviendose por el puente
+            const progress = (time * 0.5 + bridge.weight * 0.1) % 1;
+            const t = progress;
+            const particleX = from.x * (1-t) * (1-t) + 2 * controlX * (1-t) * t + to.x * t * t;
+            const particleY = from.y * (1-t) * (1-t) + 2 * controlY * (1-t) * t + to.y * t * t;
+            
+            // Estructura del puente
+            ctx.beginPath();
+            ctx.moveTo(from.x, from.y);
+            ctx.quadraticCurveTo(controlX, controlY, to.x, to.y);
+            
+            // Color según tipo de puente
+            const gradient = ctx.createLinearGradient(from.x, from.y, to.x, to.y);
+            gradient.addColorStop(0, '#8b4513');
+            gradient.addColorStop(0.5, '#a0522d');
+            gradient.addColorStop(1, '#8b4513');
+            ctx.strokeStyle = gradient;
+            ctx.lineWidth = 6;
+            ctx.stroke();
+            
+            // Barandillas
+            ctx.strokeStyle = '#654321';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            
+            // Partícula animada (vehículo/persona cruzando)
+            ctx.fillStyle = '#e74c3c';
+            ctx.beginPath();
+            ctx.arc(particleX, particleY, 5, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Etiqueta de peso
+            ctx.fillStyle = 'white';
+            ctx.strokeStyle = '#2c3e50';
+            ctx.lineWidth = 3;
+            ctx.font = 'bold 14px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.strokeText(bridge.weight, controlX, controlY - 10);
+            ctx.fillText(bridge.weight, controlX, controlY - 10);
+        }
+        
+        function animate() {
+            if (animating) {
+                time += 0.02 * speed;
+            }
+            
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Dibujar agua
+            drawWater();
+            
+            // Dibujar distritos
+            Object.values(districts).forEach(district => {
+                drawDistrict(district);
+            });
+            
+            // Dibujar puentes con offset para múltiples puentes
+            const bridgeGroups = {};
+            bridges.forEach(bridge => {
+                const key = [bridge.from, bridge.to].sort().join('-');
+                if (!bridgeGroups[key]) bridgeGroups[key] = [];
+                bridgeGroups[key].push(bridge);
+            });
+            
+            Object.values(bridgeGroups).forEach(group => {
+                const totalBridges = group.length;
+                const offsetStart = -(totalBridges - 1) / 2;
+                
+                group.forEach((bridge, i) => {
+                    const offset = offsetStart + i;
+                    drawBridge(bridge, offset);
+                });
+            });
+            
+            requestAnimationFrame(animate);
+        }
+        
+        function toggleAnimation() {
+            animating = !animating;
+        }
+        
+        function changeSpeed() {
+            speedIndex = (speedIndex + 1) % speedOptions.length;
+            speed = speedOptions[speedIndex];
+            const speedText = speed === 0.5 ? 'Lenta' : speed === 1 ? 'Normal' : 'Rápida';
+            document.getElementById('speed').textContent = speedText;
+        }
+        
+        animate();
+    </script>
+</body>
+</html>
